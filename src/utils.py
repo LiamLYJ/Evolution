@@ -3,24 +3,26 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import numpy as np
 import scipy.misc
+from glob import glob
+import os
 
 def setup_updates(flags):
     updates = {'e': {}, 'g': {}}
 
-    updates['e']['num_updates'] = int(opt.e_updates.split(';')[0])
+    updates['e']['num_updates'] = int(flags.e_updates.split(';')[0])
     updates['e'].update({x.split(':')[0]: float(x.split(':')[1])
-                         for x in opt.e_updates.split(';')[1].split(',')})
+                         for x in flags.e_updates.split(';')[1].split(',')})
 
-    updates['g']['num_updates'] = int(opt.g_updates.split(';')[0])
+    updates['g']['num_updates'] = int(flags.g_updates.split(';')[0])
     updates['g'].update({x.split(':')[0]: float(x.split(':')[1])
-                         for x in opt.g_updates.split(';')[1].split(',')})
+                         for x in flags.g_updates.split(';')[1].split(',')})
     return updates
 
 def save(saver, session, flags, step):
     dataset_name = flags.dataset_name
     checkpoint_dir = flags.checkpoint_dir
     checkpoint_dir = os.path.join(checkpoint_dir, dataset_name)
-    model_name = "Evolution.model"
+    model_name = flags.model_name
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
     saver.save(session,
@@ -49,8 +51,10 @@ def get_training_data(flags):
     input_fname_pattern = flags.input_fname_pattern
     input_width = flags.input_width
     input_height = flags.input_height
-    input_channel = flags.channel
+    channel = flags.nc
     batch_size = flags.batch_size
+    dataset_name = flags.dataset_name
+
 
     num_preprocess_threads = 1
     min_queue_examples = 256
