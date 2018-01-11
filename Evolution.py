@@ -5,11 +5,13 @@ import numpy as np
 import tensorflow as tf
 
 from models.ge_GAN import ge_GAN
+from models.dc_GAN import dc_GAN
+from models.evo_GAN import evo_GAN
 
 flags = tf.app.flags
 flags.DEFINE_integer("iter", 800000, "total iter to train ")
 flags.DEFINE_integer("save_iter", 2000, "iter to save ")
-flags.DEFINE_float("lr", 0.0002, "Learning rate of for adam [0.0002]")
+flags.DEFINE_float("lr", 0.0001, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_integer("input_height", 32, "The size of image to use (will be center cropped). [108]")
@@ -23,7 +25,8 @@ flags.DEFINE_boolean("train", True, "True for training, False for testing [False
 flags.DEFINE_integer("nz",100, "length of lantent vector")
 flags.DEFINE_integer("nc",3, " number of channel")
 flags.DEFINE_integer("ngf", 64, "length of feature in Generator")
-flags.DEFINE_integer("ndf", 64, "length of feature in Encoder")
+flags.DEFINE_integer("nef", 64, "length of feature in Encoder")
+flags.DEFINE_integer("nd1f", 64, "length of feature in Discriminator_1")
 flags.DEFINE_string("KL", "qp", "set which distribution to be unit gaussian| qp||pq")
 flags.DEFINE_string("noise", "sphere", "kind of noise namely what kind of space to project on ")
 
@@ -52,8 +55,17 @@ def main(_):
     run_config.gpu_options.allow_growth=True
 
     with tf.Session(config = run_config) as sess:
-        gan = ge_GAN(sess, FLAGS)
-        gan.train()
+        if FLAGS.model_name == 'ge_GAN':
+            gan = ge_GAN(sess, FLAGS)
+            gan.train()
+        elif FLAGS.model_name == 'dc_GAN':
+            gan = dc_GAN(sess, FLAGS)
+            gan.train()
+        elif FLAGS.model_name == 'evo_GAN':
+            gan = evo_GAN(sess, FLAGS)
+            gan.train()
+        else :
+            print ('FLAGS.model_name is illega model type ! ')
 
 if __name__ == '__main__':
     tf.app.run()

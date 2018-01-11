@@ -2,3 +2,6 @@
 *.jpg
 *.png
 train_data/
+checkpoint*/
+*_samples/
+

@@ -64,7 +64,7 @@ def get_training_data(flags):
 
     filename_queue = tf.train.string_input_producer(file_list[:])
     _,image_file = image_reader.read(filename_queue)
-    image = tf.image.decode_jpeg(image_file)
+    image = tf.image.resize_images(tf.image.decode_jpeg(image_file),[input_height, input_width])
     image = tf.cast(tf.reshape(image,shape = [input_height, input_width, channel]), dtype = tf.float32)
 
     batch_images = tf.train.shuffle_batch([image],
@@ -101,9 +101,10 @@ def imsave(images, size, path):
     image = np.squeeze(merge(images, size))
     return scipy.misc.imsave(path,image)
 
-def save_images(flags, img, iter, type):
+def save_images(flags, img, iter, type_name):
     batch_size = flags.batch_size
     sample_dir = flags.sample_dir
+    dataset_name = flags.dataset_name
     manifold_h = int(np.ceil(np.sqrt(batch_size)))
     manifold_w = int(np.floor(np.sqrt(batch_size)))
-    imsave(img, [manifold_h, manifold_w], './{}/{}_{0:6d}.png'.format(sample_dir,type,iter))
+    imsave(img, [manifold_h, manifold_w], './%s/%s/%s_%06d.png'%(sample_dir, dataset_name, type_name, iter))

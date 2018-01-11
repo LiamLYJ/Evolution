@@ -8,7 +8,7 @@ from src.utils import setup_updates, save, load, save_images, get_training_data
 from src.ops import KL_Gaussian, match, make_z
 from src.net import net_G, net_E
 
-class ge_GAN(object):
+class evo_GAN(object):
     def __init__ (self, sess, flags ):
         self.sess = sess
         self.flags = flags
@@ -90,30 +90,24 @@ class ge_GAN(object):
         tf.global_variables_initializer().run()
 
         # merge summary
-        # self.sum_total = tf.summary.merge([self.im_sum, self.im_hat_sum, self.recon_im_sum,
-        #     self.g_loss_sum, self.match_x_g_loss_sum, self.match_z_g_loss_sum, self.KL_fake_g_loss_sum,
-        #     self.e_loss_sum, self.match_x_e_loss_sum, self.match_z_e_loss_sum, self.KL_fake_e_loss_sum, self.KL_real_e_loss_sum])
-
-
-        self.sum_total = tf.summary.merge([self.im_sum, self.im_hat_sum, self.recon_im_sum,
+        sum_total = tf.summary.merge([self.im_sum, self.im_hat_sum, self.recon_im_sum,
             self.g_loss_sum, self.KL_fake_g_loss_sum,
             self.e_loss_sum,self.KL_fake_e_loss_sum, self.KL_real_e_loss_sum])
 
-
         if hasattr(self, 'match_x_e_loss_sum'):
-            self.sum_total = tf.summary.merge([self.sum_total, self.match_x_e_loss_sum])
+            sum_total = tf.summary.merge([sum_total, self.match_x_e_loss_sum])
 
         if hasattr(self, 'match_z_e_loss_sum'):
-            self.sum_total = tf.summary.merge([self.sum_total, self.match_z_e_loss_sum])
+            sum_total = tf.summary.merge([sum_total, self.match_z_e_loss_sum])
 
         if hasattr(self, 'match_z_g_loss_sum'):
-            self.sum_total = tf.summary.merge([self.sum_total, self.match_z_g_loss_sum])
+            sum_total = tf.summary.merge([sum_total, self.match_z_g_loss_sum])
 
         if hasattr(self, 'match_x_g_loss_sum'):
-            self.sum_total = tf.summary.merge([self.sum_total, self.match_x_g_loss_sum])
+            sum_total = tf.summary.merge([sum_total, self.match_x_g_loss_sum])
 
 
-        self.writer = tf.summary.FileWriter("%s/ge_GAN_log_%s"%(self.flags.checkpoint_dir, self.flags.dataset_name), self.sess.graph)
+        writer = tf.summary.FileWriter("%s/evo_GAN_log_%s"%(self.flags.checkpoint_dir, self.flags.dataset_name), self.sess.graph)
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord = coord )
@@ -140,16 +134,17 @@ class ge_GAN(object):
                     self.sess.run([g_optim])
                 else :
                     # run with summary and loss
-                    _, sum_total_, g_loss_, = self.sess.run([g_optim, self.sum_total, self.g_loss])
-            self.writer.add_summary(sum_total_, i)
+                    _, sum_total_, g_loss_, = self.sess.run([g_optim, sum_total, self.g_loss])
+            writer.add_summary(sum_total_, i)
 
             print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f" % (i, g_loss_, e_loss_))
             print('**************************')
 
             if np.mod(i,self.flags.save_iter) == 0 or i == self.flags.iter:
                 # try to sample and save model
-                [gt_img, recon_img] = self.sess.run([self.im, self.recon_img])
-                save_images(self.flags, gt_img, i, 'GT')
-                save_images(self.flags, recon_img, i, 'recon')
+                [gt_im, recon_im] = self.sess.run([self.im, self.recon_im])
+                save_images(self.flags, gt_im, i, 'GT')
+                save_images(self.flags, recon_im, i, 'recon')
 
-                self.save(self.flags.checkpoint_dir, i)
+                save(self.saver, self.sess, self.flags, i)
+                print ('saved once ...')

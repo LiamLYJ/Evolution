@@ -22,7 +22,7 @@ def match(x,y, dist):
     elif dist == 'cos':
         x_normalized = normalize(x)
         y_normalized = normalize(y)
-        return 2 - tf.reduce_mean(tf.multipy(x_normalized, y_normalized))
+        return 2 - tf.reduce_mean(tf.multiply(x_normalized, y_normalized))
     else :
         print ("None loss indicated ,, wrong ")
         raise
