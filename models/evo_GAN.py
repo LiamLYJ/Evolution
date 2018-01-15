@@ -5,8 +5,8 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from src.utils import setup_updates, save, load, save_images, get_training_data
-from src.ops import KL_Gaussian, match, make_z
-from src.net import net_G, net_E
+from src.ops import KL_Gaussian, make_z
+from src.net import net_G_32, net_E_32, net_G_64, net_E_64, net_D1_32, net_D1_64, net_D2_32 , net_D2_64
 
 class evo_GAN(object):
     def __init__ (self, sess, flags ):
@@ -14,8 +14,20 @@ class evo_GAN(object):
         self.flags = flags
         self.updates = setup_updates(flags)
 
-        self.generator = net_G(self.flags)
-        self.encoder = net_E(self.flags)
+        if self.flags.input_size == 32:
+            self.generator = net_G_32(self.flags)
+            self.encoder = net_E_32(self.flags)
+            self.discriminator_1 = net_D1_32(self.flags)
+            self.discriminator_2 = net_D2_32(self.flags)
+        elif self.flags.input_size == 64:
+            self.generator = net_G_64(self.flags)
+            self.encoder = net_E_64(self.flags)
+            self.discriminator_1 = net_D1_64(self.flags)
+            self.discriminator_2 = net_D2_64(self.flags)
+        else :
+            print ('wrong input size: ', self.flags.input_size)
+            raise
+
         self.batch_images = get_training_data(self.flags)
         self.build_model()
 
@@ -35,22 +47,32 @@ class evo_GAN(object):
 
         self.recon_im_sum = tf.summary.image('recon_im', self.recon_im)
 
+        self.d1_real = self.discriminator_1.net(self.im)
+        self.d1_fake = self.discriminator_1.net(self.im_hat, reuse = True)
+
+        self.d2_real = self.discriminator_2.net(self.im, self.z)
+        self.d2_fake_im_hat = self.discriminator_2.net(self.im_hat, self.z, reuse = True)
+        self.d2_fake_z_hat = self.discriminator_2.net(self.im, self.z_hat, reuse = True)
+
+
         # generator loss
 
         # minizie the reccon_z with z in form of KL
         self.KL_fake_g_loss = KL_Gaussian(self.recon_z, direction = self.flags.KL)
         self.KL_fake_g_loss_sum = tf.summary.scalar('KL_fake_g_loss', self.KL_fake_g_loss)
 
-        self.g_loss = self.KL_fake_g_loss * self.updates['g']['KL_fake']
-        # if need to proceed reconstruction
-        if self.updates['g']['match_z'] != 0:
-            self.match_z_g_loss = match(self.recon_z, self.z, self.flags.match_z)
-            self.match_z_g_loss_sum = tf.summary.scalar('match_z_g_loss', self.match_z_g_loss)
-            self.g_loss += self.match_z_g_loss * self.updates['g']['match_z']
-        if self.updates['g']['match_x'] != 0:
-            self.match_x_g_loss = match(self.recon_im, self.im, self.flags.match_x)
-            self.match_x_g_loss_sum = tf.summary.scalar('match_x_g_loss', self.match_x_g_loss)
-            self.g_loss += self.match_x_g_loss * self.updates['g']['match_x']
+        self.d1_g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            logits = self.d1_fake, labels = tf.ones_like(self.d1_fake)
+        ))
+        self.d1_g_loss_sum = tf.summary.scalar('d1_g_loss', self.d1_g_loss)
+        self.d2_im_hat_g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            logits = self.d2_fake_im_hat, labels = tf.ones_like(self.d2_fake_im_hat)
+        ))
+        self.d2_im_hat_g_loss_sum = tf.summary.scalar('d2_im_hat_g_loss', self.d2_im_hat_g_loss)
+
+        self.g_loss = self.KL_fake_g_loss * self.updates['g']['KL_fake'] + \
+                        self.d1_g_loss * self.updates['g']['d1_fake'] + \
+                        self.d2_im_hat_g_loss * self.updates['g']['d2_fake']
         self.g_loss_sum = tf.summary.scalar('g_loss', self.g_loss)
 
 
@@ -62,49 +84,77 @@ class evo_GAN(object):
         # maximize the reconz with z in form of KL
         self.KL_fake_e_loss = KL_Gaussian(self.recon_z, direction = self.flags.KL, is_minimize = False )
         self.KL_fake_e_loss_sum = tf.summary.scalar('KL_fake_e_loss', self.KL_fake_e_loss)
-        self.e_loss = self.KL_fake_e_loss * self.updates['e']['KL_fake'] + self.KL_real_e_loss * self.updates['e']['KL_real']
-        # if need to proceed reconstruction
-        if self.updates['e']['match_z'] != 0:
-            self.match_z_e_loss = match(self.recon_z, self.z, self.flags.match_z)
-            self.match_z_e_loss_sum = tf.summary.scalar('match_z_e_loss', self.match_z_e_loss)
-            self.e_loss += self.match_z_e_loss * self.updates['e']['match_z']
-        if self.updates['e']['match_x'] != 0:
-            self.match_x_e_loss = match(self.recon_im, self.im, self.flags.match_x)
-            self.match_x_e_loss_sum = tf.summary.scalar('match_x_e_loss', self.match_x_e_loss)
-            self.e_loss += self.match_x_e_loss * self.updates['e']['match_x']
+
+        self.d2_z_hat_e_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            logits = self.d2_fake_z_hat, labels = tf.ones_like(self.d2_fake_z_hat)
+        ))
+        self.d2_z_hat_e_loss_sum = tf.summary.scalar('d2_z_hat_e_loss', self.d2_z_hat_e_loss)
+
+        self.e_loss = self.KL_fake_e_loss * self.updates['e']['KL_fake'] + \
+                        self.KL_real_e_loss * self.updates['e']['KL_real'] + \
+                        self.d2_z_hat_e_loss * self.updates['e']['d2_fake']
         self.e_loss_sum = tf.summary.scalar('e_loss', self.e_loss)
 
+
+        # discriminator_1 loss
+
+        self.d1_fake_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            logits = self.d1_fake, labels = tf.zeros_like(self.d1_fake)
+        ))
+        self.d1_real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            logits = self.d1_real, labels = tf.ones_like(self.d1_real)
+        ))
+        self.d1_loss = self.updates['d1']['whole_weight'] * \
+                        (self.updates['d1']['fake_weight'] * self.d1_fake_loss + \
+                        self.updates['d1']['real_weight'] * self.d1_real_loss ) /2
+        self.d1_loss_sum = tf.summary.scalar('d1_loss', self.d1_loss)
+
+        # discriminator_2 loss
+
+        self.d2_real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            logits = self.d2_real , labels = tf.ones_like(self.d2_real)
+        ))
+        self.d2_fake_z_hat_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            logits = self.d2_fake_z_hat, labels = tf.zeros_like(self.d2_fake_z_hat)
+        ))
+        self.d2_fake_im_hat_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            logits = self.d2_fake_im_hat, labels = tf.zeros_like(self.d2_fake_im_hat)
+        ))
+        self.d2_loss = self.updates['d2']['whole_weight'] * \
+                        (self.updates['d2']['real_weight'] * self.d2_real_loss + \
+                         self.updates['d2']['fake_im_weight'] * self.d2_fake_im_hat_loss + \
+                         self.updates['d2']['fake_z_weight'] * self.d2_fake_z_hat_loss) /3
+        self.d2_loss_sum = tf.summary.scalar('d2_loss', self.d2_loss)
+
+        # get variables
 
         trainable_vars = tf.trainable_variables()
         self.g_vars = [var for var in trainable_vars if 'g_' in var.name]
         self.e_vars = [var for var in trainable_vars if 'e_' in var.name]
+        self.d1_vars = [var for var in trainable_vars if 'd1_' in var.name]
+        self.d2_vars = [var for var in trainable_vars if 'd2_' in var.name]
 
         self.saver = tf.train.Saver(max_to_keep = 0)
 
     def train(self):
-        g_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
-            .minimize(self.g_loss, var_list = self.g_vars)
-        e_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
-            .minimize(self.e_loss, var_list = self.e_vars)
-
+        extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(extra_update_ops):
+            g_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+                .minimize(self.g_loss, var_list = self.g_vars)
+            e_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+                .minimize(self.e_loss, var_list = self.e_vars)
+            d1_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+                .minimize(self.d1_loss, var_list = self.d1_vars)
+            d2_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+                .minimize(self.d2_loss, var_list = self.d2_vars)
         tf.global_variables_initializer().run()
 
         # merge summary
         sum_total = tf.summary.merge([self.im_sum, self.im_hat_sum, self.recon_im_sum,
-            self.g_loss_sum, self.KL_fake_g_loss_sum,
-            self.e_loss_sum,self.KL_fake_e_loss_sum, self.KL_real_e_loss_sum])
-
-        if hasattr(self, 'match_x_e_loss_sum'):
-            sum_total = tf.summary.merge([sum_total, self.match_x_e_loss_sum])
-
-        if hasattr(self, 'match_z_e_loss_sum'):
-            sum_total = tf.summary.merge([sum_total, self.match_z_e_loss_sum])
-
-        if hasattr(self, 'match_z_g_loss_sum'):
-            sum_total = tf.summary.merge([sum_total, self.match_z_g_loss_sum])
-
-        if hasattr(self, 'match_x_g_loss_sum'):
-            sum_total = tf.summary.merge([sum_total, self.match_x_g_loss_sum])
+            self.g_loss_sum, self.KL_fake_g_loss_sum, self.d1_g_loss_sum, self.d2_im_hat_g_loss_sum,
+            self.e_loss_sum,self.KL_fake_e_loss_sum, self.KL_real_e_loss_sum, self.d2_z_hat_e_loss_sum,
+            self.d1_loss_sum, self.d2_loss_sum
+            ])
 
 
         writer = tf.summary.FileWriter("%s/evo_GAN_log_%s"%(self.flags.checkpoint_dir, self.flags.dataset_name), self.sess.graph)
@@ -122,6 +172,9 @@ class evo_GAN(object):
 
         for i in xrange(counter, self.flags.iter):
             i += 1
+
+            _,_, d1_loss_, d2_loss_ = self.sess.run([d1_optim, d2_optim, self.d1_loss, self.d2_loss])
+
             for iter_e in range(self.updates['e']['num_updates']):
                 if iter_e < (self.updates['e']['num_updates'] -1 ):
                     self.sess.run([e_optim])
@@ -137,7 +190,8 @@ class evo_GAN(object):
                     _, sum_total_, g_loss_, = self.sess.run([g_optim, sum_total, self.g_loss])
             writer.add_summary(sum_total_, i)
 
-            print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f" % (i, g_loss_, e_loss_))
+            print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f, d1_loss: %.8f, d2_loss: %.8f" \
+                    % (i, g_loss_, e_loss_, d1_loss_, d2_loss_ ))
             print('**************************')
 
             if np.mod(i,self.flags.save_iter) == 0 or i == self.flags.iter:

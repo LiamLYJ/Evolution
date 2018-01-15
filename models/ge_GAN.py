@@ -6,7 +6,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from src.utils import setup_updates, save, load, save_images, get_training_data
 from src.ops import KL_Gaussian, match, make_z
-from src.net import net_G, net_E
+from src.net import net_G_32, net_E_32, net_G_64, net_E_64
 
 class ge_GAN(object):
     def __init__ (self, sess, flags ):
@@ -14,8 +14,16 @@ class ge_GAN(object):
         self.flags = flags
         self.updates = setup_updates(flags)
 
-        self.generator = net_G(self.flags)
-        self.encoder = net_E(self.flags)
+        if self.flags.input_size == 32:
+            self.generator = net_G_32(self.flags)
+            self.encoder = net_E_32(self.flags)
+        elif self.flags.input_size == 64:
+            self.generator = net_G_64(self.flags)
+            self.encoder = net_E_64(self.flags)
+        else :
+            print ('wrong input size: ', self.flags.input_size)
+            raise
+
         self.batch_images = get_training_data(self.flags)
         self.build_model()
 
@@ -27,10 +35,12 @@ class ge_GAN(object):
 
         self.im_hat = self.generator.net(self.z)
         self.z_hat = self.encoder.net(self.im)
+        self.z_hat_test = self.encoder.net(self.im, reuse = True, is_training = False)
 
         self.im_hat_sum = tf.summary.image('fake_img', self.im_hat)
 
         self.recon_im = self.generator.net(self.z_hat, reuse = True)
+        self.recon_im_test = self.generator.net(self.z_hat_test, reuse = True, is_training = False)
         self.recon_z = self.encoder.net(self.im_hat, reuse = True)
 
         self.recon_im_sum = tf.summary.image('recon_im', self.recon_im)
@@ -82,10 +92,16 @@ class ge_GAN(object):
         self.saver = tf.train.Saver(max_to_keep = 0)
 
     def train(self):
-        g_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
-            .minimize(self.g_loss, var_list = self.g_vars)
-        e_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
-            .minimize(self.e_loss, var_list = self.e_vars)
+        extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(extra_update_ops):
+            g_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+                .minimize(self.g_loss, var_list = self.g_vars)
+            e_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+                .minimize(self.e_loss, var_list = self.e_vars)
+            
+            # g_optim = tf.train.AdagradOptimizer(self.flags.lr).minimize(self.g_loss, var_list = self.g_vars)
+            # e_optim = tf.train.AdagradOptimizer(self.flags.lr).minimize(self.e_loss, var_list = self.e_vars)
+
 
         tf.global_variables_initializer().run()
 
@@ -127,22 +143,28 @@ class ge_GAN(object):
                     self.sess.run([e_optim])
                 else:
                     # run with loss
-                    _, e_loss_ = self.sess.run([e_optim, self.e_loss])
+                    # self.sess.run([e_optim])
+                    _, e_loss_, KL_real_e_loss_, KL_fake_e_loss_ = self.sess.run(
+                                        [e_optim, self.e_loss, self.KL_real_e_loss, self.KL_fake_e_loss])
 
             for iter_g in range(self.updates['g']['num_updates']):
                 if iter_g < (self.updates['g']['num_updates'] -1):
                     self.sess.run([g_optim])
                 else :
                     # run with summary and loss
-                    _, sum_total_, g_loss_, = self.sess.run([g_optim, sum_total, self.g_loss])
+                    # self.sess.run([g_optim])
+                    _, sum_total_, g_loss_, KL_fake_g_loss_ = self.sess.run(
+                                [g_optim, sum_total, self.g_loss, self.KL_fake_g_loss])
             writer.add_summary(sum_total_, i)
 
             print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f" % (i, g_loss_, e_loss_))
+            print ('fake/real_ e: ', KL_fake_e_loss_, '\\', KL_real_e_loss_)
+            print ('fake_g: ', KL_fake_g_loss_)
             print('**************************')
 
             if np.mod(i,self.flags.save_iter) == 0 or i == self.flags.iter:
                 # try to sample and save model
-                [gt_im, recon_im] = self.sess.run([self.im, self.recon_im])
+                [gt_im, recon_im] = self.sess.run([self.im, self.recon_im_test])
                 save_images(self.flags, gt_im, i, 'GT')
                 save_images(self.flags, recon_im, i, 'recon')
 

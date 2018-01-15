@@ -4,21 +4,24 @@ import tensorflow as tf
 def make_z(flags):
     z = tf.random_normal([flags.batch_size, 1,1, flags.nz])
     if flags.noise == 'sphere':
-        normalize(z)
+        normalize(z, expand = True)
     return z
 
-def normalize(x, dim = 1):
+def normalize(x, expand = False, dim = 1):
     # project into sphere
     x = tf.squeeze(x)
     tmp = tf.div(x,tf.expand_dims(tf.norm(x,axis = 1),1))
-    # expand_dims to [b *1 * 1 *nz]
-    return tf.expand_dims(tf.expand_dims(tmp, axis= 1), axis = 1)
+    if expand:
+        # expand_dims to [b *1 * 1 *nz]
+        return tf.expand_dims(tf.expand_dims(tmp, axis= 1), axis = 1)
+    else :
+        return tmp
 
 def match(x,y, dist):
     if dist == 'L2':
-        return tf.losses.mean_squared_error(x,y)
+        return tf.reduce_mean(tf.losses.mean_squared_error(x,y))
     elif dist == 'L1':
-        return tf.losses.absolute_difference(x,y)
+        return tf.reduce_mean(tf.losses.absolute_difference(x,y))
     elif dist == 'cos':
         x_normalized = normalize(x)
         y_normalized = normalize(y)
@@ -30,7 +33,17 @@ def match(x,y, dist):
 def KL_Gaussian(samples, direction,is_minimize = True):
 
     assert direction in ['pq','qp']
-    samples_mean, samples_var = tf.nn.moments(tf.squeeze(samples), axes = [1] )
+    samples_mean, samples_var = tf.nn.moments(tf.squeeze(samples), axes = [0] )
+
+
+    # sess = tf.Session()
+    # print ('samples_mean: ', samples_mean)
+    # print (sess.run(samples_mean))
+    # print ('sample_var: ', samples_var)
+    # print (sess.run(samples_var))
+    # print ('*************************')
+    # 
+
     if direction == 'pq':
         # mu_1 = 0; sigma_1 = 1
         term1 = (1+ tf.pow(samples_mean, 2)) / (2 * tf.pow(samples_var, 2))

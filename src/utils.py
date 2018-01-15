@@ -7,7 +7,7 @@ from glob import glob
 import os
 
 def setup_updates(flags):
-    updates = {'e': {}, 'g': {}}
+    updates = {'e': {}, 'g': {}, 'd1': {}, 'd2': {}}
 
     updates['e']['num_updates'] = int(flags.e_updates.split(';')[0])
     updates['e'].update({x.split(':')[0]: float(x.split(':')[1])
@@ -16,6 +16,14 @@ def setup_updates(flags):
     updates['g']['num_updates'] = int(flags.g_updates.split(';')[0])
     updates['g'].update({x.split(':')[0]: float(x.split(':')[1])
                          for x in flags.g_updates.split(';')[1].split(',')})
+
+    updates['d1']['num_updates'] = int(flags.d1_updates.split(';')[0])
+    updates['d1'].update({x.split(':')[0]: float(x.split(':')[1])
+                         for x in flags.d1_updates.split(';')[1].split(',')})
+
+    updates['d2']['num_updates'] = int(flags.d2_updates.split(';')[0])
+    updates['d2'].update({x.split(':')[0]: float(x.split(':')[1])
+                         for x in flags.d2_updates.split(';')[1].split(',')})
     return updates
 
 def save(saver, session, flags, step):
@@ -49,8 +57,7 @@ def load(saver, session, flags):
 
 def get_training_data(flags):
     input_fname_pattern = flags.input_fname_pattern
-    input_width = flags.input_width
-    input_height = flags.input_height
+    input_size = flags.input_size
     channel = flags.nc
     batch_size = flags.batch_size
     dataset_name = flags.dataset_name
@@ -64,8 +71,8 @@ def get_training_data(flags):
 
     filename_queue = tf.train.string_input_producer(file_list[:])
     _,image_file = image_reader.read(filename_queue)
-    image = tf.image.resize_images(tf.image.decode_jpeg(image_file),[input_height, input_width])
-    image = tf.cast(tf.reshape(image,shape = [input_height, input_width, channel]), dtype = tf.float32)
+    image = tf.image.resize_images(tf.image.decode_jpeg(image_file),[input_size, input_size])
+    image = tf.cast(tf.reshape(image,shape = [input_size, input_size, channel]), dtype = tf.float32)
 
     batch_images = tf.train.shuffle_batch([image],
                                         batch_size = batch_size,

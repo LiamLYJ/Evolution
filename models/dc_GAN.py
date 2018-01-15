@@ -6,7 +6,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from src.utils import setup_updates, save, load, save_images, get_training_data
 from src.ops import KL_Gaussian, match, make_z
-from src.net import net_G, net_D1
+from src.net import net_G_32, net_D1_32, net_G_64, net_D1_64
 
 class dc_GAN(object):
     def __init__ (self, sess, flags ):
@@ -14,8 +14,15 @@ class dc_GAN(object):
         self.flags = flags
         self.flags.noise = 'normal'
 
-        self.generator = net_G(self.flags)
-        self.discriminator_1 = net_D1(self.flags)
+        if self.flags.input_size == 32:
+            self.generator = net_G_32(self.flags)
+            self.discriminator_1 = net_D1_32(self.flags)
+        elif self.flags.input_size == 64:
+            self.generator = net_G_64(self.flags)
+            self.discriminator_1 = net_D1_64(self.flags)
+        else :
+            print ('wrong input size: ', self.flags.input_size)
+            raise
         self.batch_images = get_training_data(self.flags)
         self.build_model()
 
@@ -61,10 +68,12 @@ class dc_GAN(object):
         self.saver = tf.train.Saver(max_to_keep = 0)
 
     def train(self):
-        g_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
-            .minimize(self.g_loss, var_list = self.g_vars)
-        d1_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
-            .minimize(self.d1_loss, var_list = self.d1_vars)
+        extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(extra_update_ops):
+            g_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+                .minimize(self.g_loss, var_list = self.g_vars)
+            d1_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+                .minimize(self.d1_loss, var_list = self.d1_vars)
 
         tf.global_variables_initializer().run()
 

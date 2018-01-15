@@ -14,29 +14,30 @@ flags.DEFINE_integer("save_iter", 2000, "iter to save ")
 flags.DEFINE_float("lr", 0.0001, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
-flags.DEFINE_integer("input_height", 32, "The size of image to use (will be center cropped). [108]")
-flags.DEFINE_integer("input_width", 32, "The size of image to use (will be center cropped). If None, same value as input_height [None]")
+flags.DEFINE_integer("input_size", 32, "The size of image to use ")
 flags.DEFINE_string("dataset_name", "cifar10", "The name of dataset [...]")
 flags.DEFINE_string("input_fname_pattern", '*jpg', "pattern of image ")
 flags.DEFINE_string("model_name", 'ge_GAN', 'model to use ')
 
 flags.DEFINE_boolean("train", True, "True for training, False for testing [False]")
 
-flags.DEFINE_integer("nz",100, "length of lantent vector")
+flags.DEFINE_integer("nz",64, "length of lantent vector")
 flags.DEFINE_integer("nc",3, " number of channel")
 flags.DEFINE_integer("ngf", 64, "length of feature in Generator")
 flags.DEFINE_integer("nef", 64, "length of feature in Encoder")
 flags.DEFINE_integer("nd1f", 64, "length of feature in Discriminator_1")
+flags.DEFINE_integer("nd2f", 128, "length of feature in Discriminator_2")
 flags.DEFINE_string("KL", "qp", "set which distribution to be unit gaussian| qp||pq")
 flags.DEFINE_string("noise", "sphere", "kind of noise namely what kind of space to project on ")
 
-# no need for reconstruction
-flags.DEFINE_string("match_z", "L2", "loss type | L1|L2|cos")
+# reconstruction for ag_GAN
+flags.DEFINE_string("match_z", "cos", "loss type | L1|L2|cos")
 flags.DEFINE_string("match_x", "L1", "loss type | L1|L2|cos")
 
-flags.DEFINE_string("e_updates", "1;KL_fake:1,KL_real:1,match_z:0,match_x:0", "update plan and weights for encoder " )
-flags.DEFINE_string("g_updates", "2;KL_fake:1,match_z:1,match_x:0", "update plan and weights for generator")
-
+flags.DEFINE_string("e_updates", "1;KL_fake:1,KL_real:1,match_z:0,match_x:0,d2_fake:1", "update plan and weights for encoder " )
+flags.DEFINE_string("g_updates", "2;KL_fake:1,match_z:1,match_x:0,d1_fake:1,d2_fake:1", "update plan and weights for generator")
+flags.DEFINE_string("d1_updates", "1;whole_weight:1000,fake_weight:1,real_weight:1", "update plan and weights for discriminator_1")
+flags.DEFINE_string("d2_updates", "1;whole_weight:1,real_weight:1,fake_z_weight:1,fake_im_weight:1", "update plan and weights for discriminator_2")
 
 FLAGS = flags.FLAGS
 
