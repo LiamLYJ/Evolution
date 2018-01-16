@@ -143,10 +143,12 @@ class evo_GAN(object):
                 .minimize(self.g_loss, var_list = self.g_vars)
             e_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
                 .minimize(self.e_loss, var_list = self.e_vars)
-            d1_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
-                .minimize(self.d1_loss, var_list = self.d1_vars)
-            d2_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
-                .minimize(self.d2_loss, var_list = self.d2_vars)
+            # d1_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+            #     .minimize(self.d1_loss, var_list = self.d1_vars)
+            # d2_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
+            #     .minimize(self.d2_loss, var_list = self.d2_vars)
+            d1_optim = tf.train.RMSPropOptimizer(self.flags.lr).minimize(self.d1_loss, var_list = self.d1_vars)
+            d2_optim = tf.train.RMSPropOptimizer(self.flags.lr).minimize(self.d2_loss, var_list = self.d2_vars)
         tf.global_variables_initializer().run()
 
         # merge summary

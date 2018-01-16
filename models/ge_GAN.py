@@ -35,12 +35,14 @@ class ge_GAN(object):
 
         self.im_hat = self.generator.net(self.z)
         self.z_hat = self.encoder.net(self.im)
-        self.z_hat_test = self.encoder.net(self.im, reuse = True, is_training = False)
+        # self.z_hat_test = self.encoder.net(self.im, reuse = True, is_training = False)
+        self.z_hat_test = self.encoder.net(self.im, reuse = True)
 
         self.im_hat_sum = tf.summary.image('fake_img', self.im_hat)
 
         self.recon_im = self.generator.net(self.z_hat, reuse = True)
-        self.recon_im_test = self.generator.net(self.z_hat_test, reuse = True, is_training = False)
+        # self.recon_im_test = self.generator.net(self.z_hat_test, reuse = True, is_training = False)
+        self.recon_im_test = self.generator.net(self.z_hat_test, reuse = True)
         self.recon_z = self.encoder.net(self.im_hat, reuse = True)
 
         self.recon_im_sum = tf.summary.image('recon_im', self.recon_im)
@@ -98,7 +100,7 @@ class ge_GAN(object):
                 .minimize(self.g_loss, var_list = self.g_vars)
             e_optim = tf.train.AdamOptimizer(self.flags.lr, beta1 = self.flags.beta1) \
                 .minimize(self.e_loss, var_list = self.e_vars)
-            
+
             # g_optim = tf.train.AdagradOptimizer(self.flags.lr).minimize(self.g_loss, var_list = self.g_vars)
             # e_optim = tf.train.AdagradOptimizer(self.flags.lr).minimize(self.e_loss, var_list = self.e_vars)
 

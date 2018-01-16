@@ -36,13 +36,13 @@ class net_G_32(object):
         input = tf.squeeze(input)
         input = tf.expand_dims(tf.expand_dims(input, axis= 1), axis = 1)
         with tf.variable_scope(scope, 'Generator', [input], reuse = reuse ) as net_scope:
-            with slim.arg_scope(model_arg_scope(is_training = is_training)):
+            with slim.arg_scope(model_arg_scope(is_training = is_training, ac_fn = _leaky_relu)):
                 if reuse:
                     net_scope.reuse_variables()
                 # b* 4*4
-                net = slim.conv2d_transpose(input, self.ngf*8, [4,4], padding = 'VALID',stride = 1, scope = 'g_deconv_1')
-                # net = slim.fully_connected(input, self.ngf*8*4*4, scope = 'g_deconv_1')
-                # net = tf.reshape(net, [-1, 4, 4, self.ngf*8])
+                # net = slim.conv2d_transpose(input, self.ngf*8, [4,4], padding = 'VALID',stride = 1, scope = 'g_deconv_1')
+                net = slim.fully_connected(input, self.ngf*8*4*4, scope = 'g_deconv_1')
+                net = tf.reshape(net, [-1, 4, 4, self.ngf*8])
                 # b* 8*8 *
                 net = slim.conv2d_transpose(net, self.ngf*4, [5,5], stride = 2 , scope = 'g_deconv_2')
                 # b* 16*16 *
@@ -65,13 +65,13 @@ class net_G_64(object):
         input = tf.squeeze(input)
         input = tf.expand_dims(tf.expand_dims(input, axis= 1), axis = 1)
         with tf.variable_scope(scope, 'Generator', [input], reuse = reuse ) as net_scope:
-            with slim.arg_scope(model_arg_scope(is_training = is_training)):
+            with slim.arg_scope(model_arg_scope(is_training = is_training, ac_fn = _leaky_relu)):
                 if reuse:
                     net_scope.reuse_variables()
                 # b* 4*4
-                net = slim.conv2d_transpose(input, self.ngf*8, [4,4], padding = 'VALID', stride = 1, scope = 'g_deconv_1')
-                # net = slim.fully_connected(input, self.ngf*8*4*4, scope = 'g_deconv_1')
-                # net = tf.reshape(net, [-1, 4, 4, self.ngf*8])
+                # net = slim.conv2d_transpose(input, self.ngf*8, [4,4], padding = 'VALID', stride = 1, scope = 'g_deconv_1')
+                net = slim.fully_connected(input, self.ngf*8*4*4, scope = 'g_deconv_1')
+                net = tf.reshape(net, [-1, 4, 4, self.ngf*8])
                 # b* 8*8 *
                 net = slim.conv2d_transpose(net, self.ngf*4, [5,5], stride = 2 , scope = 'g_deconv_2')
                 # b* 16*16 *
