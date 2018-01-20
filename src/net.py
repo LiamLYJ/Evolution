@@ -156,7 +156,7 @@ class net_D1_32(object):
                 net = slim.conv2d(net, self.nd1f * 4, [5,5], stride =2, scope = 'd1_conv3')
                 net = slim.conv2d(net, self.nd1f * 8, [5,5], stride =2, scope = 'd1_conv4')
                 net = slim.flatten(net)
-                net = slim.fully_connected(net, 1, scope = 'd1_fc', activation_fn = None, normalizer_fn = None)
+                net = slim.fully_connected(net, 2, scope = 'd1_fc', activation_fn = None, normalizer_fn = None)
                 return net
 
 
@@ -175,7 +175,7 @@ class net_D1_64(object):
                 net = slim.conv2d(net, self.nd1f * 8, [5,5], stride =2, scope = 'd1_conv4')
                 net = slim.conv2d(net, self.nd1f * 8, [5,5], stride =2, scope = 'd1_conv5')
                 net = slim.flatten(net)
-                net = slim.fully_connected(net, 1, scope = 'd1_fc', activation_fn = None, normalizer_fn = None)
+                net = slim.fully_connected(net, 2, scope = 'd1_fc', activation_fn = None, normalizer_fn = None)
                 return net
 
 
@@ -200,7 +200,7 @@ class net_D2_32(object):
                 net = slim.fully_connected(net, self.nd2f*4, scope = 'd2_fc3')
 
                 net = slim.flatten(net)
-                net = slim.fully_connected(net, 1, normalizer_fn = None, activation_fn = None, scope = 'd2_fc4')
+                net = slim.fully_connected(net, 2, normalizer_fn = None, activation_fn = None, scope = 'd2_fc4')
                 return net
 
 
@@ -226,5 +226,5 @@ class net_D2_64(object):
                 net = slim.fully_connected(net, self.nd2f*4, scope = 'd2_fc3')
 
                 net = slim.flatten(net)
-                net = slim.fully_connected(net, 1, normalizer_fn = None, activation_fn = None, scope = 'd2_fc4')
+                net = slim.fully_connected(net, 2, normalizer_fn = None, activation_fn = None, scope = 'd2_fc4')
                 return net

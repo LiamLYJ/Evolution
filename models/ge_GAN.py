@@ -157,12 +157,13 @@ class ge_GAN(object):
                     # self.sess.run([g_optim])
                     _, sum_total_, g_loss_, KL_fake_g_loss_ = self.sess.run(
                                 [g_optim, sum_total, self.g_loss, self.KL_fake_g_loss])
-            writer.add_summary(sum_total_, i)
 
-            print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f" % (i, g_loss_, e_loss_))
-            print ('fake/real_ e: ', KL_fake_e_loss_, '\\', KL_real_e_loss_)
-            print ('fake_g: ', KL_fake_g_loss_)
-            print('**************************')
+            if np.mod(i,20) == 0:
+                writer.add_summary(sum_total_, i)
+                print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f" % (i, g_loss_, e_loss_))
+                print ('fake/real_ e: ', KL_fake_e_loss_, '\\', KL_real_e_loss_)
+                print ('fake_g: ', KL_fake_g_loss_)
+                print('**************************')
 
             if np.mod(i,self.flags.save_iter) == 0 or i == self.flags.iter:
                 # try to sample and save model

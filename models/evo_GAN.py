@@ -12,6 +12,7 @@ class evo_GAN(object):
     def __init__ (self, sess, flags ):
         self.sess = sess
         self.flags = flags
+        self.batch_size = flags.batch_size
         self.updates = setup_updates(flags)
 
         if self.flags.input_size == 32:
@@ -61,12 +62,12 @@ class evo_GAN(object):
         self.KL_fake_g_loss = KL_Gaussian(self.recon_z, direction = self.flags.KL)
         self.KL_fake_g_loss_sum = tf.summary.scalar('KL_fake_g_loss', self.KL_fake_g_loss)
 
-        self.d1_g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            logits = self.d1_fake, labels = tf.ones_like(self.d1_fake)
+        self.d1_g_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d1_fake, labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
         self.d1_g_loss_sum = tf.summary.scalar('d1_g_loss', self.d1_g_loss)
-        self.d2_im_hat_g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            logits = self.d2_fake_im_hat, labels = tf.ones_like(self.d2_fake_im_hat)
+        self.d2_im_hat_g_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_fake_im_hat, labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
         self.d2_im_hat_g_loss_sum = tf.summary.scalar('d2_im_hat_g_loss', self.d2_im_hat_g_loss)
 
@@ -85,8 +86,8 @@ class evo_GAN(object):
         self.KL_fake_e_loss = KL_Gaussian(self.recon_z, direction = self.flags.KL, is_minimize = False )
         self.KL_fake_e_loss_sum = tf.summary.scalar('KL_fake_e_loss', self.KL_fake_e_loss)
 
-        self.d2_z_hat_e_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            logits = self.d2_fake_z_hat, labels = tf.ones_like(self.d2_fake_z_hat)
+        self.d2_z_hat_e_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_fake_z_hat, labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
         self.d2_z_hat_e_loss_sum = tf.summary.scalar('d2_z_hat_e_loss', self.d2_z_hat_e_loss)
 
@@ -98,11 +99,11 @@ class evo_GAN(object):
 
         # discriminator_1 loss
 
-        self.d1_fake_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            logits = self.d1_fake, labels = tf.zeros_like(self.d1_fake)
+        self.d1_fake_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d1_fake, labels = tf.zeros([self.batch_size], dtype = tf.int64)
         ))
-        self.d1_real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            logits = self.d1_real, labels = tf.ones_like(self.d1_real)
+        self.d1_real_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d1_real, labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
         self.d1_loss = self.updates['d1']['whole_weight'] * \
                         (self.updates['d1']['fake_weight'] * self.d1_fake_loss + \
@@ -111,14 +112,14 @@ class evo_GAN(object):
 
         # discriminator_2 loss
 
-        self.d2_real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            logits = self.d2_real , labels = tf.ones_like(self.d2_real)
+        self.d2_real_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_real , labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
-        self.d2_fake_z_hat_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            logits = self.d2_fake_z_hat, labels = tf.zeros_like(self.d2_fake_z_hat)
+        self.d2_fake_z_hat_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_fake_z_hat, labels = tf.zeros([self.batch_size], dtype = tf.int64)
         ))
-        self.d2_fake_im_hat_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            logits = self.d2_fake_im_hat, labels = tf.zeros_like(self.d2_fake_im_hat)
+        self.d2_fake_im_hat_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_fake_im_hat, labels = tf.zeros([self.batch_size], dtype = tf.int64)
         ))
         self.d2_loss = self.updates['d2']['whole_weight'] * \
                         (self.updates['d2']['real_weight'] * self.d2_real_loss + \
@@ -190,11 +191,12 @@ class evo_GAN(object):
                 else :
                     # run with summary and loss
                     _, sum_total_, g_loss_, = self.sess.run([g_optim, sum_total, self.g_loss])
-            writer.add_summary(sum_total_, i)
 
-            print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f, d1_loss: %.8f, d2_loss: %.8f" \
-                    % (i, g_loss_, e_loss_, d1_loss_, d2_loss_ ))
-            print('**************************')
+            if np.mod(i,20) == 0:
+                writer.add_summary(sum_total_, i)
+                print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f, d1_loss: %.8f, d2_loss: %.8f" \
+                        % (i, g_loss_, e_loss_, d1_loss_, d2_loss_ ))
+                print('**************************')
 
             if np.mod(i,self.flags.save_iter) == 0 or i == self.flags.iter:
                 # try to sample and save model

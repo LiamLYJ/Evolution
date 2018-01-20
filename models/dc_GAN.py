@@ -13,6 +13,7 @@ class dc_GAN(object):
         self.sess = sess
         self.flags = flags
         self.flags.noise = 'normal'
+        self.batch_size = flags.batch_size
 
         if self.flags.input_size == 32:
             self.generator = net_G_32(self.flags)
@@ -43,17 +44,17 @@ class dc_GAN(object):
         # print (self.d1_fake.shape)
         # print ('**********')
         # raise
-        self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            labels = tf.ones_like(self.d1_fake), logits = self.d1_fake
+        self.g_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels = tf.ones([self.batch_size], dtype = tf.int64), logits = self.d1_fake
         ))
         self.g_loss_sum = tf.summary.scalar('g_loss', self.g_loss)
 
         # discriminator_1 loss
-        self.d1_fake_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            labels = tf.zeros_like(self.d1_fake), logits = self.d1_fake
+        self.d1_fake_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels = tf.zeros([self.batch_size], dtype = tf.int64), logits = self.d1_fake
         ))
-        self.d1_real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            labels = tf.ones_like(self.d1_real), logits = self.d1_real
+        self.d1_real_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels = tf.ones([self.batch_size], dtype = tf.int64), logits = self.d1_real
         ))
         self.d1_loss = self.d1_real_loss + self.d1_fake_loss
         self.d1_fake_loss_sum = tf.summary.scalar('d1_fake_loss', self.d1_fake_loss)
