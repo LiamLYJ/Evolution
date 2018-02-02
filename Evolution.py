@@ -7,6 +7,7 @@ import tensorflow as tf
 from models.ge_GAN import ge_GAN
 from models.dc_GAN import dc_GAN
 from models.evo_GAN import evo_GAN
+from models.sr_GAN import sr_GAN
 
 flags = tf.app.flags
 flags.DEFINE_integer("iter", 800000, "total iter to train ")
@@ -64,6 +65,9 @@ def main(_):
             gan.train()
         elif FLAGS.model_name == 'evo_GAN':
             gan = evo_GAN(sess, FLAGS)
+            gan.train()
+        elif FLAGS.model_name == 'sr_GAN':
+            gan = sr_GAN(sess, FLAGS)
             gan.train()
         else :
             print ('FLAGS.model_name is illega model type ! ')
