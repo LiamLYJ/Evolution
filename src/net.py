@@ -26,6 +26,86 @@ def model_arg_scope(weight_decay=0.0005, is_training = True, ac_fn = tf.nn.relu)
 def _leaky_relu(x):
     return tf.where(tf.greater(x,0),x,0.2*x)
 
+class net_G_sr(object):
+    def __init__(self,flags):
+        self.nc = flags.nc
+        self.ngf = flags.ngf
+
+    def net(self, input, is_training = True, reuse = False, scope = 'Generator'):
+        with tf.variable_scope(scope, 'Generator', [input], reuse = reuse ) as net_scope:
+            with slim.arg_scope(model_arg_scope(is_training = is_training, ac_fn = _leaky_relu)):
+                if reuse:
+                    net_scope.reuse_variables()
+                # b*32*32*3
+                net = slim.conv2d(input, self.ngf, [5,5], stride =1, scope = 'g_conv1' )
+                net = slim.conv2d(net, self.ngf*2, [5,5], stride =1, scope = 'g_conv2' )
+                net = slim.conv2d(net, self.ngf*4, [5,5], stride =1, scope = 'g_conv3' )
+                net = slim.conv2d(net, self.ngf*8, [5,5], stride =1, scope = 'g_conv4' )
+                net = slim.conv2d(net, self.nc, [1,1],stride = 1, normalizer_fn = None, activation_fn = tf.nn.tanh, scope = 'g_conv')
+                # b*32*32*3
+                return net
+
+
+
+class net_E_sr(object):
+    def __init__(self,flags):
+        self.nc = flags.nc
+        self.nef = flags.nef
+
+    def net(self, input, is_training = True, reuse = False, scope = 'Encoder'):
+        with tf.variable_scope(scope, 'Encoder', [input], reuse = reuse ) as net_scope:
+            with slim.arg_scope(model_arg_scope(is_training = is_training, ac_fn = _leaky_relu)):
+                if reuse:
+                    net_scope.reuse_variables()
+                # b*32*32*3
+                net = slim.conv2d(input, self.nef*8, [5,5], stride = 1, scope = 'e_conv_1')
+                net = slim.conv2d(net, self.nef*4, [5,5], stride = 1, scope = 'e_conv_2')
+                net = slim.conv2d(net, self.nef*2, [5,5], stride = 1, scope = 'e_conv_3')
+                net = slim.conv2d(net, self.nef, [5,5], stride = 1, scope = 'e_conv_4')
+                net = slim.conv2d(net, self.nc, [1,1], stride = 1, normalizer_fn = None, activation_fn = tf.nn.tanh, scope = 'e_conv')
+                # b*32*32*3
+                return net
+
+
+class net_D1_sr(object):
+    def __init__(self,flags):
+        self.nd1f = flags.nd1f
+
+    def net(self, input, is_training = True, reuse = False, scope = 'Discriminator_1'):
+        with tf.variable_scope(scope, 'Discriminator_1', [input], reuse = reuse) as net_scope:
+            with slim.arg_scope(model_arg_scope(is_training = is_training, ac_fn = _leaky_relu )):
+                if reuse:
+                    net_scope.reuse_variables()
+                net = slim.conv2d(input, self.nd1f, [5,5], stride =2, scope = 'd1_conv1')
+                net = slim.conv2d(net, self.nd1f * 2, [5,5], stride =2, scope = 'd1_conv2')
+                net = slim.conv2d(net, self.nd1f * 4, [5,5], stride =2, scope = 'd1_conv3')
+                net = slim.conv2d(net, self.nd1f * 8, [5,5], stride =2, scope = 'd1_conv4')
+                net = slim.flatten(net)
+                net = slim.fully_connected(net, 2, normalizer_fn = None, activation_fn = None, scope = 'd1_fc')
+                return net
+
+
+class net_D2_sr(object):
+    def __init__(self,flags):
+        self.nd2f = flags.nd2f
+
+    def net(self, imh_input, iml_input, is_training = True, reuse = False, scope = 'Discriminator_2'):
+        with tf.variable_scope(scope, 'Discriminator_2', [imh_input, iml_input], reuse = reuse) as net_scope:
+            with slim.arg_scope(model_arg_scope(is_training = is_training, ac_fn = _leaky_relu )):
+                if reuse:
+                    net_scope.reuse_variables()
+
+                pair = tf.concat([imh_input, iml_input], 3)
+                net = slim.conv2d(pair, self.nd2f, [5,5], stride =2, scope = 'd2_conv1')
+                net = slim.conv2d(pair, self.nd2f*2, [5,5], stride =2, scope = 'd2_conv2')
+                net = slim.conv2d(pair, self.nd2f*4, [5,5], stride =2, scope = 'd2_conv3')
+                net = slim.conv2d(pair, self.nd2f*8, [5,5], stride =2, scope = 'd2_conv4')
+                net = slim.flatten(net)
+                net = slim.fully_connected(net, 2, normalizer_fn = None, activation_fn = None, scope = 'd2_fc')
+                return net
+
+
+
 class net_G_32(object):
     def __init__(self,flags):
         self.nc = flags.nc

@@ -6,7 +6,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from src.utils import setup_updates, save, load, save_images, get_training_data
 from src.ops import KL_Gaussian, make_z
-from src.net import net_G_32, net_E_32, net_G_64, net_E_64, net_D1_32, net_D1_64, net_D2_32 , net_D2_64
+from src.net import net_G_sr, net_E_sr, net_D1_sr, net_D2_sr
 
 class sr_GAN(object):
     def __init__ (self, sess, flags ):
@@ -15,85 +15,81 @@ class sr_GAN(object):
         self.batch_size = flags.batch_size
         self.updates = setup_updates(flags)
 
-        if self.flags.input_size == 32:
-            self.generator = net_G_32(self.flags)
-            self.encoder = net_E_32(self.flags)
-            self.discriminator_1 = net_D1_32(self.flags)
-            self.discriminator_2 = net_D2_32(self.flags)
-        elif self.flags.input_size == 64:
-            self.generator = net_G_64(self.flags)
-            self.encoder = net_E_64(self.flags)
-            self.discriminator_1 = net_D1_64(self.flags)
-            self.discriminator_2 = net_D2_64(self.flags)
-        else :
-            print ('wrong input size: ', self.flags.input_size)
-            raise
+        self.generator = net_G_sr(self.flags)
+        self.encoder = net_E_sr(self.flags)
+        self.discriminator_1 = net_D1_sr(self.flags)
+        self.discriminator_2 = net_D2_sr(self.flags)
 
         self.batch_images = get_training_data(self.flags)
         self.build_model()
 
     def build_model(self):
-        self.im = self.batch_images
-        self.z = make_z(self.flags)
+        self.imh = self.batch_images
+        self.iml_tmp = tf.image.resize_images(self.imh, [8,8])
+        self.iml = tf.image.resize_images(self.iml_tmp, [32,32])
 
-        self.im_sum = tf.summary.image('real_img', self.im)
+        self.imh_sum = tf.summary.image('img_high', self.imh)
+        self.iml_sum = tf.summary.image('img_low', self.iml)
 
-        self.im_hat = self.generator.net(self.z)
-        self.z_hat = self.encoder.net(self.im)
+        self.imh_hat = self.generator.net(self.iml)
+        self.iml_hat = self.encoder.net(self.imh)
 
-        self.im_hat_sum = tf.summary.image('fake_img', self.im_hat)
+        self.imh_hat_sum = tf.summary.image('img_high_fake', self.imh_hat)
 
-        self.recon_im = self.generator.net(self.z_hat, reuse = True)
-        self.recon_z = self.encoder.net(self.im_hat, reuse = True)
+        # self.recon_im = self.generator.net(self.z_hat, reuse = True)
+        # self.recon_z = self.encoder.net(self.im_hat, reuse = True)
 
-        self.recon_im_sum = tf.summary.image('recon_im', self.recon_im)
+        # self.recon_im_sum = tf.summary.image('recon_im', self.recon_im)
 
-        self.d1_real = self.discriminator_1.net(self.im)
-        self.d1_fake = self.discriminator_1.net(self.im_hat, reuse = True)
+        self.d1_real = self.discriminator_1.net(self.imh)
+        self.d1_fake = self.discriminator_1.net(self.imh_hat, reuse = True)
 
-        self.d2_real = self.discriminator_2.net(self.im, self.z)
-        self.d2_fake_im_hat = self.discriminator_2.net(self.im_hat, self.z, reuse = True)
-        self.d2_fake_z_hat = self.discriminator_2.net(self.im, self.z_hat, reuse = True)
+        self.d2_real = self.discriminator_2.net(self.imh, self.iml)
+        self.d2_fake_imh_hat = self.discriminator_2.net(self.imh_hat, self.iml, reuse = True)
+        self.d2_fake_iml_hat = self.discriminator_2.net(self.imh, self.iml_hat, reuse = True)
 
 
         # generator loss
 
-        # minizie the reccon_z with z in form of KL
-        self.KL_fake_g_loss = KL_Gaussian(self.recon_z, direction = self.flags.KL)
-        self.KL_fake_g_loss_sum = tf.summary.scalar('KL_fake_g_loss', self.KL_fake_g_loss)
+        # # minizie the reccon_z with z in form of KL
+        # self.KL_fake_g_loss = KL_Gaussian(self.recon_z, direction = self.flags.KL)
+        # self.KL_fake_g_loss_sum = tf.summary.scalar('KL_fake_g_loss', self.KL_fake_g_loss)
 
         self.d1_g_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits = self.d1_fake, labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
         self.d1_g_loss_sum = tf.summary.scalar('d1_g_loss', self.d1_g_loss)
-        self.d2_im_hat_g_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits = self.d2_fake_im_hat, labels = tf.ones([self.batch_size], dtype = tf.int64)
+        self.d2_imh_hat_g_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_fake_imh_hat, labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
-        self.d2_im_hat_g_loss_sum = tf.summary.scalar('d2_im_hat_g_loss', self.d2_im_hat_g_loss)
+        self.d2_imh_hat_g_loss_sum = tf.summary.scalar('d2_imh_hat_g_loss', self.d2_imh_hat_g_loss)
 
-        self.g_loss = self.KL_fake_g_loss * self.updates['g']['KL_fake'] + \
-                        self.d1_g_loss * self.updates['g']['d1_fake'] + \
-                        self.d2_im_hat_g_loss * self.updates['g']['d2_fake']
+        # self.g_loss = self.KL_fake_g_loss * self.updates['g']['KL_fake'] + \
+        #                 self.d1_g_loss * self.updates['g']['d1_fake'] + \
+        #                 self.d2_im_hat_g_loss * self.updates['g']['d2_fake']
+        self.g_loss =   self.d1_g_loss * self.updates['g']['d1_fake'] + \
+                        self.d2_imh_hat_g_loss * self.updates['g']['d2_fake']
         self.g_loss_sum = tf.summary.scalar('g_loss', self.g_loss)
 
 
         # encoder loss
 
-        # minizie the z_hat with z in form of KL
-        self.KL_real_e_loss = KL_Gaussian(self.z_hat, direction = self.flags.KL)
-        self.KL_real_e_loss_sum = tf.summary.scalar('KL_real_e_loss', self.KL_real_e_loss)
-        # maximize the reconz with z in form of KL
-        self.KL_fake_e_loss = KL_Gaussian(self.recon_z, direction = self.flags.KL, is_minimize = False )
-        self.KL_fake_e_loss_sum = tf.summary.scalar('KL_fake_e_loss', self.KL_fake_e_loss)
+        # # minizie the z_hat with z in form of KL
+        # self.KL_real_e_loss = KL_Gaussian(self.z_hat, direction = self.flags.KL)
+        # self.KL_real_e_loss_sum = tf.summary.scalar('KL_real_e_loss', self.KL_real_e_loss)
+        # # maximize the reconz with z in form of KL
+        # self.KL_fake_e_loss = KL_Gaussian(self.recon_z, direction = self.flags.KL, is_minimize = False )
+        # self.KL_fake_e_loss_sum = tf.summary.scalar('KL_fake_e_loss', self.KL_fake_e_loss)
 
-        self.d2_z_hat_e_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits = self.d2_fake_z_hat, labels = tf.ones([self.batch_size], dtype = tf.int64)
+        self.d2_iml_hat_e_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_fake_iml_hat, labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
-        self.d2_z_hat_e_loss_sum = tf.summary.scalar('d2_z_hat_e_loss', self.d2_z_hat_e_loss)
+        self.d2_iml_hat_e_loss_sum = tf.summary.scalar('d2_iml_hat_e_loss', self.d2_iml_hat_e_loss)
 
-        self.e_loss = self.KL_fake_e_loss * self.updates['e']['KL_fake'] + \
-                        self.KL_real_e_loss * self.updates['e']['KL_real'] + \
-                        self.d2_z_hat_e_loss * self.updates['e']['d2_fake']
+        # self.e_loss = self.KL_fake_e_loss * self.updates['e']['KL_fake'] + \
+        #                 self.KL_real_e_loss * self.updates['e']['KL_real'] + \
+        #                 self.d2_z_hat_e_loss * self.updates['e']['d2_fake']
+        self.e_loss =  self.d2_iml_hat_e_loss * self.updates['e']['d2_fake']
         self.e_loss_sum = tf.summary.scalar('e_loss', self.e_loss)
 
 
@@ -115,16 +111,16 @@ class sr_GAN(object):
         self.d2_real_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits = self.d2_real , labels = tf.ones([self.batch_size], dtype = tf.int64)
         ))
-        self.d2_fake_z_hat_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits = self.d2_fake_z_hat, labels = tf.zeros([self.batch_size], dtype = tf.int64)
+        self.d2_fake_iml_hat_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_fake_iml_hat, labels = tf.zeros([self.batch_size], dtype = tf.int64)
         ))
-        self.d2_fake_im_hat_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits = self.d2_fake_im_hat, labels = tf.zeros([self.batch_size], dtype = tf.int64)
+        self.d2_fake_imh_hat_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits = self.d2_fake_imh_hat, labels = tf.zeros([self.batch_size], dtype = tf.int64)
         ))
         self.d2_loss = self.updates['d2']['whole_weight'] * \
                         (self.updates['d2']['real_weight'] * self.d2_real_loss + \
-                         self.updates['d2']['fake_im_weight'] * self.d2_fake_im_hat_loss + \
-                         self.updates['d2']['fake_z_weight'] * self.d2_fake_z_hat_loss) /3
+                         self.updates['d2']['fake_im_weight'] * self.d2_fake_imh_hat_loss + \
+                         self.updates['d2']['fake_z_weight'] * self.d2_fake_iml_hat_loss) /3
         self.d2_loss_sum = tf.summary.scalar('d2_loss', self.d2_loss)
 
         # get variables
@@ -153,12 +149,16 @@ class sr_GAN(object):
         tf.global_variables_initializer().run()
 
         # merge summary
-        sum_total = tf.summary.merge([self.im_sum, self.im_hat_sum, self.recon_im_sum,
-            self.g_loss_sum, self.KL_fake_g_loss_sum, self.d1_g_loss_sum, self.d2_im_hat_g_loss_sum,
-            self.e_loss_sum,self.KL_fake_e_loss_sum, self.KL_real_e_loss_sum, self.d2_z_hat_e_loss_sum,
+        # sum_total = tf.summary.merge([self.im_sum, self.im_hat_sum, self.recon_im_sum,
+        #     self.g_loss_sum, self.KL_fake_g_loss_sum, self.d1_g_loss_sum, self.d2_im_hat_g_loss_sum,
+        #     self.e_loss_sum,self.KL_fake_e_loss_sum, self.KL_real_e_loss_sum, self.d2_z_hat_e_loss_sum,
+        #     self.d1_loss_sum, self.d2_loss_sum
+        #     ])
+        sum_total = tf.summary.merge([self.imh_sum, self.imh_hat_sum,
+            self.g_loss_sum, self.d1_g_loss_sum, self.d2_imh_hat_g_loss_sum,
+            self.e_loss_sum, self.d2_iml_hat_e_loss_sum,
             self.d1_loss_sum, self.d2_loss_sum
             ])
-
 
         writer = tf.summary.FileWriter("%s/sr_GAN_log_%s"%(self.flags.checkpoint_dir, self.flags.dataset_name), self.sess.graph)
 
@@ -192,7 +192,7 @@ class sr_GAN(object):
                     # run with summary and loss
                     _, sum_total_, g_loss_, = self.sess.run([g_optim, sum_total, self.g_loss])
 
-            if np.mod(i,20) == 0:
+            if np.mod(i,10) == 0:
                 writer.add_summary(sum_total_, i)
                 print("iteration: [%2d], g_loss: %.8f, e_loss: %.8f, d1_loss: %.8f, d2_loss: %.8f" \
                         % (i, g_loss_, e_loss_, d1_loss_, d2_loss_ ))
@@ -200,9 +200,10 @@ class sr_GAN(object):
 
             if np.mod(i,self.flags.save_iter) == 0 or i == self.flags.iter:
                 # try to sample and save model
-                [gt_im, recon_im] = self.sess.run([self.im, self.recon_im])
-                save_images(self.flags, gt_im, i, 'GT')
-                save_images(self.flags, recon_im, i, 'recon')
+                [low_im, high_im, fakehigh_im] = self.sess.run([self.iml, self.imh, self.imh_hat])
+                save_images(self.flags, low_im, i, 'iml')
+                save_images(self.flags, high_im, i, 'imh')
+                save_images(self.flags, fakehigh_im, i, 'imh_hat')
 
                 save(self.saver, self.sess, self.flags, i)
                 print ('saved once ...')
